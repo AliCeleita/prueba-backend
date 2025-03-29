@@ -1,0 +1,88 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  postgres_db:
+    image: postgres:latest
+    container_name: postgres_db
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ordersDb
+      POSTGRES_USER: helisa
+      POSTGRES_PASSWORD: 14785
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    restart: always
+    depends_on:
+      - postgres_db
+    ports:
+      - "9090:8080"
+
+  order-service:
+    build:
+      context: ./order-service
+    container_name: order-service
+    ports:
+      - "8080:8080"
+    depends_on:
+      - rabbitmq
+      - postgres_db
+    environment:
+      QUEUE_ORDERS: orders.queue
+      QUEUE_RESPONSE: response.queue
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres_db:5432/ordersDb
+      SPRING_DATASOURCE_USERNAME: helisa
+      SPRING_DATASOURCE_PASSWORD: 14785
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+  inventory-service:
+    build:
+      context: ./inventory-service
+    container_name: inventory-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      - rabbitmq
+      - postgres_db
+    environment:
+      QUEUE_ORDERS: orders.queue
+      QUEUE_RESPONSE: response.queue
+      QUEUE_DELIVERY: delivery.queue
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres_db:5432/ordersDb
+      SPRING_DATASOURCE_USERNAME: helisa
+      SPRING_DATASOURCE_PASSWORD: 14785
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+  delivery-service:
+    build:
+      context: ./delivery-service
+    container_name: delivery-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      - rabbitmq
+    environment:
+      QUEUE_RESPONSE: response.queue
+      QUEUE_DELIVERY: delivery.queue
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+
+volumes:
+  postgres_data:
